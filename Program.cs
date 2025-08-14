@@ -32,6 +32,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddRedis(builder.Configuration);
 builder.Services.AddPostgre(builder.Configuration);
 builder.Services.AddAllModules(builder.Configuration);
+builder.Services.AddRateLimitingPolicies();
 builder.Services.AddSwaggerWithJwtAndIdempotency();
 
 builder.Services.AddJwtAuth(builder.Configuration);

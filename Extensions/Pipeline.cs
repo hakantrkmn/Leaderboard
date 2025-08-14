@@ -15,6 +15,7 @@ public static class Pipeline
 		app.UseHttpsRedirection();
 		app.UseMetricServer("/metrics");
 		app.UseHttpMetrics();
+		app.UseRateLimiter();
 		app.UseAuthentication();
 		app.UseAuthorization();
 		app.MapControllers();

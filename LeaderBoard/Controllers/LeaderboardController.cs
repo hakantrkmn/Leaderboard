@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Leaderboard.LeaderBoard.DTO;
 using Leaderboard.LeaderBoard.Interfaces;
 using Leaderboard.Filters;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Leaderboard.LeaderBoard.Controllers;
 
@@ -21,6 +22,7 @@ public class LeaderboardController : ControllerBase
     [Authorize]
     [HttpPost("submit")]
 	[Idempotency(ttlSeconds: 30, headerName: "Idempotency-Key")]
+	[EnableRateLimiting("submit")]
 	public async Task<IActionResult> Submit([FromBody] SubmitMatchRequest request, CancellationToken ct)
 	{
 		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
@@ -31,6 +33,7 @@ public class LeaderboardController : ControllerBase
 
 	[HttpGet("top")]
 	[ActionMetric]
+	[EnableRateLimiting("top")]
 	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> Top([FromQuery] int n = 100, CancellationToken ct = default)
 	{
 		try {

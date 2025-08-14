@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Leaderboard.Auth.Interfaces;
 using Leaderboard.Auth.DTO;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Leaderboard.Auth.Controller;
 
@@ -16,6 +17,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var response = await _authService.LoginAsync(request);
