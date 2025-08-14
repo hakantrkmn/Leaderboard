@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Leaderboard.Users.DTO;
+namespace Leaderboard.Auth.DTO;
 
 public class LoginRequest
 {

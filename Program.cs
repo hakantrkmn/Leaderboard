@@ -32,6 +32,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddRedis(builder.Configuration);
 builder.Services.AddPostgre(builder.Configuration);
 builder.Services.AddUsersModule(builder.Configuration);
+builder.Services.AddAuthModule(builder.Configuration);
+builder.Services.AddSwaggerWithJwtAndIdempotency();
+
+builder.Services.AddJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 app.UsePipeline();
