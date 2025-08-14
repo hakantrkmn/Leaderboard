@@ -3,7 +3,7 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
-    container_name: rc-postgres
+    container_name: lb-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: rc-redis
+    container_name: lb-redis
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -34,7 +34,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:8
-    container_name: rc-pgadmin
+    container_name: lb-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@local}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
@@ -45,7 +45,7 @@ services:
 
   redisinsight:
     image: redis/redisinsight:latest
-    container_name: rc-redisinsight
+    container_name: lb-redisinsight
     ports:
       - "${REDISINSIGHT_PORT:-5540}:5540"
     volumes:
@@ -53,7 +53,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: rc-prometheus
+    container_name: lb-prometheus
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -61,7 +61,7 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    container_name: rc-grafana
+    container_name: lb-grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
@@ -75,7 +75,28 @@ services:
     depends_on:
       - prometheus
 
-  
+
+# Application service
+  api:
+    build: .
+    container_name: lb-api
+    ports:
+      - "${API_PORT:-9090}:8080"
+      - "${API_HTTPS_PORT:-9091}:443"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -7,11 +7,8 @@ public static class Pipeline
 {
     public static WebApplication UsePipeline(this WebApplication app)
     {
-        if(app.Environment.IsDevelopment())
-        {
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        }
+        app.UseSwagger();
+        app.UseSwaggerUI();
 		app.UseHttpsRedirection();
 		app.UseMetricServer("/metrics");
 		app.UseHttpMetrics();
