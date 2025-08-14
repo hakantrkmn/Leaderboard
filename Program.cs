@@ -25,12 +25,13 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 builder.Logging.ClearProviders();
+builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddRedis(builder.Configuration);
 builder.Services.AddPostgre(builder.Configuration);
-builder.Services.AddModules(builder.Configuration);
+builder.Services.AddUsersModule(builder.Configuration);
 
 var app = builder.Build();
 app.UsePipeline();
