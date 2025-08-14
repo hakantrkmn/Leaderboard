@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Leaderboard.LeaderBoard.DTO;
 using Leaderboard.LeaderBoard.Interfaces;
+using Leaderboard.Filters;
 
 namespace Leaderboard.LeaderBoard.Controllers;
 
@@ -19,6 +20,7 @@ public class LeaderboardController : ControllerBase
 
     [Authorize]
     [HttpPost("submit")]
+	[Idempotency(ttlSeconds: 30, headerName: "Idempotency-Key")]
 	public async Task<IActionResult> Submit([FromBody] SubmitMatchRequest request, CancellationToken ct)
 	{
 		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
@@ -31,9 +33,9 @@ public class LeaderboardController : ControllerBase
 	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> Top([FromQuery] int n = 100, CancellationToken ct = default)
 	{
 		try {
-		n = Math.Clamp(n, 1, 1000);
-		var top = await _service.GetTopAsync(n, ct);
-		return Ok(top);
+			n = Math.Clamp(n, 1, 1000);
+			var top = await _service.GetTopAsync(n, ct);
+			return Ok(top);
 		}
 		catch (Exception ex)
 		{
