@@ -1,3 +1,5 @@
+using Prometheus;
+
 namespace Leaderboard.Extensions;
 
 
@@ -10,8 +12,12 @@ public static class Pipeline
             app.UseSwagger();
             app.UseSwaggerUI();
         }
-        app.UseHttpsRedirection();
-        app.MapControllers();
+		app.UseHttpsRedirection();
+		app.UseMetricServer("/metrics");
+		app.UseHttpMetrics();
+		app.UseAuthentication();
+		app.UseAuthorization();
+		app.MapControllers();
         return app;
     }
 }

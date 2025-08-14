@@ -20,9 +20,9 @@ public class AuthService : IAuthService
     {
         var user = await _userRepository.GetByUsernameAsync(request.Username, ct);
         if (user is null) 
-            throw new UnauthorizedAccessException("Invalid credentials");
+            return null;
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            throw new UnauthorizedAccessException("Invalid credentials");
+            return null;
 
         var (token, expiresAt) = _tokenService.CreateAccessToken(user);
         return new AuthResponse(token, expiresAt);

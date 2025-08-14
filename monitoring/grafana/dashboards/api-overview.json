@@ -1,0 +1,31 @@
+{
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API Requests (rate by controller/action/status)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (controller,action,status) (rate(api_requests_total[5m]))",
+          "legendFormat": "{{controller}} {{action}} {{status}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "API p95 Duration (seconds)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (controller,action,le) (rate(api_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{controller}} {{action}} p95"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 36,
+  "title": "Rune-Case API Overview",
+  "version": 1
+}
+
+

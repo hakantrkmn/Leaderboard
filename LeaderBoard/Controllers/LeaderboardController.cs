@@ -30,6 +30,7 @@ public class LeaderboardController : ControllerBase
 	}
 
 	[HttpGet("top")]
+	[ActionMetric]
 	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> Top([FromQuery] int n = 100, CancellationToken ct = default)
 	{
 		try {
