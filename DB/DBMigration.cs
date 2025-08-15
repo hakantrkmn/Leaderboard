@@ -20,7 +20,7 @@ public static class DBMigration
             var canConnect = await context.Database.CanConnectAsync();
             if (!canConnect)
             {
-                logger.LogError("❌ Cannot connect to database");
+                logger.LogError("❌ Cannot connect to database PLEASE CHECK THE ENV FILE");
                 return;
             }
 

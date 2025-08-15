@@ -87,20 +87,8 @@ That's it! The system creates all necessary database tables automatically.
 
 If you want to run it locally for development:
 
-#### Option 1: Local API with Docker Databases
 
-```bash
-# Start just the databases
-docker-compose up -d postgres redis
-
-# Run the API locally on port 5088
-dotnet run --urls "http://localhost:5088"
-
-# Apply any pending migrations
-dotnet ef database update
-```
-
-#### Option 2: Full Local Development (Recommended)
+#### Full Local Development (Recommended)
 
 If you want to run the API locally but use Docker for databases and monitoring:
 
