@@ -8,6 +8,9 @@ public class DBContext : DbContext
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<LeaderboardEntry> Leaderboard => Set<LeaderboardEntry>();
+
+    public DbSet<LeaderboardAroundRow> LeaderboardAroundRows => Set<LeaderboardAroundRow>();
+
     public DBContext(DbContextOptions<DBContext> options) : base(options){ }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -38,5 +41,8 @@ public class DBContext : DbContext
 
 		lb.HasIndex(e => new { e.Score, e.RegistrationDateUtc, e.PlayerLevel, e.TrophyCount })
 			.HasDatabaseName("IX_Leaderboard_Ranking");
+
+        modelBuilder.Entity<LeaderboardAroundRow>().HasNoKey();
+
     }
 }

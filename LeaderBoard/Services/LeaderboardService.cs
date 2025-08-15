@@ -150,7 +150,12 @@ public class LeaderboardService : ILeaderboardService
         var entry = await _repo.GetByUserIdAsync(userId, ct);
         return entry?.UpdatedAtUtc;
     }
-
+	public async Task<IReadOnlyList<LeaderboardEntryResponse>> GetAroundMeAsync(Guid userId, int k, CancellationToken ct = default)
+	{
+		k = Math.Clamp(k, 1, 50);
+		var rows = await _repo.GetAroundMeAsync(userId, k, ct);
+		return rows.Select(r => new LeaderboardEntryResponse(r.UserId, r.Score, r.Rn)).ToList();
+	}
 
 
 }

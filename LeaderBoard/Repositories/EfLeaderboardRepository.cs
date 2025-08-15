@@ -56,6 +56,34 @@ public class EfLeaderboardRepository : ILeaderboardRepository
         return higher + 1;
 	}
 
+	public async Task<List<LeaderboardAroundRow>> GetAroundMeAsync(Guid userId, int k, CancellationToken ct = default)
+    {
+        var sql = @"WITH ranked AS (
+  SELECT
+    ""UserId"",
+    ""Score"",
+    ""RegistrationDateUtc"",
+    ""PlayerLevel"",
+    ""TrophyCount"",
+    ROW_NUMBER() OVER (
+      ORDER BY ""Score"" DESC, ""RegistrationDateUtc"" ASC, ""PlayerLevel"" DESC, ""TrophyCount"" DESC
+    ) AS rn
+  FROM ""LeaderboardEntries""
+),
+me AS (
+  SELECT rn AS my_rn FROM ranked WHERE ""UserId"" = @p0
+)
+SELECT r.""UserId"" AS ""UserId"", r.""Score"" AS ""Score"", r.rn AS ""Rn""
+FROM ranked r CROSS JOIN me
+WHERE r.rn BETWEEN GREATEST(me.my_rn - @p1, 1) AND me.my_rn + @p1
+ORDER BY r.rn;";
+
+        return await _db.LeaderboardAroundRows
+            .FromSqlRaw(sql, userId, k)
+            .AsNoTracking()
+            .ToListAsync(ct);
+    }
+
    
 }
 
