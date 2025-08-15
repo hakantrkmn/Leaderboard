@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using StackExchange.Redis;
+using Leaderboard.Metrics;
+using System.Security.Claims;
 
 namespace Leaderboard.Filters;
 
@@ -40,6 +42,8 @@ public sealed class IdempotencyAttribute : Attribute, IAsyncActionFilter
 		var exists = await db.KeyExistsAsync(redisKey);
 		if (exists)
 		{
+			var endpoint = GetEndpoint(context);
+			AppMetrics.IdempotencyConflictsTotal.WithLabels(userId, endpoint).Inc();
 			context.Result = new ConflictObjectResult(new { 
 				success = false,
 				code = "IDEMPOTENT_CONFLICT", 
@@ -69,6 +73,13 @@ public sealed class IdempotencyAttribute : Attribute, IAsyncActionFilter
 		{
 			await db.StringSetAsync(redisKey, "success", _ttl);
 		}
+	}
+
+	private static string GetEndpoint(ActionExecutingContext context)
+	{
+		var controller = context.Controller.GetType().Name.Replace("Controller", "");
+		var action = context.ActionDescriptor.RouteValues["action"] ?? "Unknown";
+		return $"{controller}.{action}";
 	}
 }
 

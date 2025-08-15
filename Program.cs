@@ -1,11 +1,9 @@
 using DotNetEnv;
 using Leaderboard.Extensions;
 using Leaderboard.DB;
-using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
-using Prometheus;
 using System.Text.Json.Serialization;
 
 try
@@ -60,11 +58,9 @@ builder.Services.AddJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 
-
+await DBMigration.EnsureDatabaseMigrated(app.Services);
 
 app.UseMiddleware<Leaderboard.Middleware.StructuredLoggingMiddleware>();
 
-
 app.UsePipeline();
 app.Run();
-

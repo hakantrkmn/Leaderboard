@@ -75,6 +75,44 @@ public static class AppMetrics
         name: "leaderboard_active_users",
         help: "Number of active users in the last hour"
     );
+
+    // Security Metrics
+    public static readonly Counter ReplayAttackAttemptsTotal = Prometheus.Metrics.CreateCounter(
+        name: "leaderboard_replay_attack_attempts_total",
+        help: "Total replay attack attempts detected",
+        configuration: new CounterConfiguration
+        {
+            LabelNames = new[] { "user_id", "reason", "endpoint" }
+        }
+    );
+
+    public static readonly Counter IdempotencyConflictsTotal = Prometheus.Metrics.CreateCounter(
+        name: "leaderboard_idempotency_conflicts_total",
+        help: "Total idempotency conflicts detected",
+        configuration: new CounterConfiguration
+        {
+            LabelNames = new[] { "user_id", "endpoint" }
+        }
+    );
+
+    public static readonly Histogram TimestampAgeSeconds = Prometheus.Metrics.CreateHistogram(
+        name: "leaderboard_request_timestamp_age_seconds",
+        help: "Age of request timestamps in seconds",
+        configuration: new HistogramConfiguration
+        {
+            LabelNames = new[] { "endpoint", "status" },
+            Buckets = new[] { 0.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0 } // 0s to 1h
+        }
+    );
+
+    public static readonly Counter SecurityValidationFailuresTotal = Prometheus.Metrics.CreateCounter(
+        name: "leaderboard_security_validation_failures_total",
+        help: "Total security validation failures",
+        configuration: new CounterConfiguration
+        {
+            LabelNames = new[] { "validation_type", "user_id", "endpoint" }
+        }
+    );
 }
 
 

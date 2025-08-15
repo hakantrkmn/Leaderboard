@@ -54,6 +54,7 @@ public static class SwaggerExtensions
 			});
 			
 			c.OperationFilter<IdempotencyHeaderOperationFilter>();
+			c.OperationFilter<TimestampHeaderOperationFilter>();
 			c.OperationFilter<GameModeOperationFilter>();
 		});
 		return services;
@@ -111,6 +112,34 @@ public class GameModeOperationFilter : IOperationFilter
 					operation.Description = "Get players ranked above and below the authenticated user in the specified game mode.";
 					break;
 			}
+		}
+	}
+}
+
+public class TimestampHeaderOperationFilter : IOperationFilter
+{
+	public void Apply(OpenApiOperation operation, OperationFilterContext context)
+	{
+		// TimestampValidation attribute'u olan method'lara timestamp header ekle
+		var hasTimestampValidation = context.MethodInfo.GetCustomAttributes(typeof(Leaderboard.Filters.TimestampValidationAttribute), false).Any();
+		
+		if (hasTimestampValidation)
+		{
+			operation.Parameters ??= new List<OpenApiParameter>();
+			
+			operation.Parameters.Add(new OpenApiParameter
+			{
+				Name = "X-Timestamp",
+				In = ParameterLocation.Header,
+				Required = true,
+				Description = "UTC timestamp in Unix seconds format (e.g., 1642694400). Used for replay attack protection.",
+				Schema = new OpenApiSchema
+				{
+					Type = "integer",
+					Format = "int64",
+					Example = new OpenApiLong(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+				}
+			});
 		}
 	}
 }

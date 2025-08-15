@@ -22,12 +22,12 @@ public class AuthService : IAuthService
         if (user is null) 
         {
             AppMetrics.LoginAttemptsTotal.WithLabels("failed").Inc();
-            return null;
+            throw new UnauthorizedAccessException("Invalid username or password");
         }
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
             AppMetrics.LoginAttemptsTotal.WithLabels("failed").Inc();
-            return null;
+            throw new UnauthorizedAccessException("Invalid username or password");
         }
 
         AppMetrics.LoginAttemptsTotal.WithLabels("success").Inc();

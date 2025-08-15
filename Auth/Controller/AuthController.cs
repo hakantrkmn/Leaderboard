@@ -17,21 +17,58 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var response = await _authService.LoginAsync(request);
-        if (response is null)
-            return Unauthorized();
-        return Ok(response);
+        try
+        {
+            var response = await _authService.LoginAsync(request);
+            return Ok(new { 
+                success = true, 
+                message = "Login successful",
+                data = response 
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { 
+                success = false, 
+                message = ex.Message 
+            });
+        }
+        catch
+        {
+            return BadRequest(new { 
+                success = false, 
+                message = "Login failed" 
+            });
+        }
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
     {
-        var response = await _authService.RegisterAsync(request);
-        if (response is null)
-            return BadRequest();
-        return Ok(response);
+        try
+        {
+            var response = await _authService.RegisterAsync(request);
+            return Ok(new { 
+                success = true, 
+                message = "Registration successful",
+                data = response 
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return BadRequest(new { 
+                success = false, 
+                message = ex.Message 
+            });
+        }
+        catch
+        {
+            return BadRequest(new { 
+                success = false, 
+                message = "Registration failed" 
+            });
+        }
     }
 }

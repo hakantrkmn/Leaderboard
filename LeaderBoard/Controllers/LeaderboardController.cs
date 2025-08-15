@@ -22,7 +22,8 @@ public class LeaderboardController : ControllerBase
 
     [Authorize]
     [HttpPost("submit")]
-	[Idempotency(ttlSeconds: 30, headerName: "Idempotency-Key")]
+	[Idempotency(ttlSeconds: 300, headerName: "Idempotency-Key")]
+	[TimestampValidation(maxAgeMinutes: 10, maxFutureMinutes: 2)]
 	[EnableRateLimiting("submit")]
 	public async Task<IActionResult> Submit([FromBody] SubmitMatchRequest request, CancellationToken ct)
 	{
