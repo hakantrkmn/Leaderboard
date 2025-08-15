@@ -11,7 +11,6 @@ public static class AuthExtensions
 {
 	public static IServiceCollection AddJwtAuth(this IServiceCollection services, IConfiguration configuration)
 	{
-		// .env dosyasından tüm değerleri oku
 		var secret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? "dev-insecure-secret-change";
 		var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "LeaderboardAPI";
 		var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "LeaderboardUsers";

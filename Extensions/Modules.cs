@@ -29,6 +29,7 @@ public static class Modules
     {
         services.AddScoped<ILeaderboardRepository, EfLeaderboardRepository>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
+        
         return services;
     }
 

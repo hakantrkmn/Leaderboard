@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using Prometheus;
 
 try
 {
@@ -21,16 +22,28 @@ var builder = WebApplication.CreateBuilder(args);
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
     .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "LeaderboardAPI")
+    .Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
+    .Enrich.WithMachineName()
+    .Enrich.WithThreadId()
     .WriteTo.Console(new CompactJsonFormatter())
+    .WriteTo.File(new CompactJsonFormatter(), "logs/leaderboard-.json", 
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7)
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
 builder.Logging.ClearProviders();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<Leaderboard.Filters.LoggingActionFilter>();
+});
+
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
 builder.Services.AddRedis(builder.Configuration);
 builder.Services.AddPostgre(builder.Configuration);
 builder.Services.AddAllModules(builder.Configuration);
@@ -41,7 +54,6 @@ builder.Services.AddJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 
-// Apply database migrations
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<DBContext>();
@@ -56,6 +68,9 @@ using (var scope = app.Services.CreateScope())
         throw;
     }
 }
+
+app.UseMiddleware<Leaderboard.Middleware.StructuredLoggingMiddleware>();
+
 
 app.UsePipeline();
 app.Run();

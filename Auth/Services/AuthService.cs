@@ -1,9 +1,9 @@
 using Leaderboard.Users.Interfaces;
-
 using Leaderboard.Auth.DTO;
 using Leaderboard.Auth.Interfaces;
 using Leaderboard.Users.DTO;
 using Leaderboard.Users.Models;
+using Leaderboard.Metrics;
 
 public class AuthService : IAuthService
 {
@@ -20,10 +20,17 @@ public class AuthService : IAuthService
     {
         var user = await _userRepository.GetByUsernameAsync(request.Username, ct);
         if (user is null) 
+        {
+            AppMetrics.LoginAttemptsTotal.WithLabels("failed").Inc();
             return null;
+        }
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            AppMetrics.LoginAttemptsTotal.WithLabels("failed").Inc();
             return null;
+        }
 
+        AppMetrics.LoginAttemptsTotal.WithLabels("success").Inc();
         var (token, expiresAt) = _tokenService.CreateAccessToken(user);
         return new AuthResponse(token, expiresAt);
     }

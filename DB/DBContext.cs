@@ -36,7 +36,6 @@ public class DBContext : DbContext
 			.HasForeignKey(e => e.UserId)
 			.OnDelete(DeleteBehavior.Cascade);
 
-		// Composite index to support ranking: score DESC, registration_date ASC, player_level DESC, trophy_count DESC
 		lb.HasIndex(e => new { e.Score, e.RegistrationDateUtc, e.PlayerLevel, e.TrophyCount })
 			.HasDatabaseName("IX_Leaderboard_Ranking");
     }

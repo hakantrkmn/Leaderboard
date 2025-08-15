@@ -25,21 +25,17 @@ public sealed class IdempotencyAttribute : Attribute, IAsyncActionFilter
 			return;
 		}
 		var key = keyValues.ToString().Trim();
-		// Optionally validate UUID format here
 
 		var userId = http.User?.FindFirst("sub")?.Value ?? http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anon";
 		var redisKey = $"idem:lb:{userId}:{key}";
 
-		// Resolve a ConnectionMultiplexer to perform atomic SET NX with TTL
 		var mux = http.RequestServices.GetService<IConnectionMultiplexer>();
 		if (mux is null)
 		{
-			// Fallback to proceed if redis unavailable
 			await next();
 			return;
 		}
 		var db = mux.GetDatabase();
-		// SET key value NX PX ttl
 		var set = await db.StringSetAsync(redisKey, "1", _ttl, When.NotExists);
 		if (!set)
 		{
