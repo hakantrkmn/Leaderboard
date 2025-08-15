@@ -63,7 +63,9 @@ You'll need Docker and Docker Compose. That's it.
 
 2. **Fire It Up**
    ```bash
-   docker-compose up -d
+   # create .env file
+   # Copy .env.prod contents to .env
+   # docker-compose up -d
    ```
 
 3. **Verify Everything's Working**
