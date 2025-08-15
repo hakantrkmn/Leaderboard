@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Leaderboard.LeaderBoard.Models;
 
 namespace Leaderboard.LeaderBoard.DTO;
 
@@ -9,6 +10,8 @@ public class SubmitMatchRequest
 	public long Score { get; set; }
 	public int? PlayerLevel { get; set; }
 	public int? TrophyCount { get; set; }
+	
+	public GameMode GameMode { get; set; } = GameMode.Classic;
 }
 
 

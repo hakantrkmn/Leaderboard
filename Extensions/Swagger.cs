@@ -1,6 +1,7 @@
 using System.Reflection;
 using Leaderboard.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -13,7 +14,13 @@ public static class SwaggerExtensions
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(c =>
 		{
-			c.SwaggerDoc("v1", new OpenApiInfo { Title = "rune-case", Version = "v1" });
+			c.SwaggerDoc("v1", new OpenApiInfo 
+			{ 
+				Title = "Leaderboard API - Multi-Game Mode Support", 
+				Version = "v1",
+				Description = "Scalable leaderboard API supporting Classic and Tournament game modes with real-time ranking"
+			});
+			
 			c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
 			{
 				Name = "Authorization",
@@ -23,6 +30,7 @@ public static class SwaggerExtensions
 				BearerFormat = "JWT",
 				Description = "Enter: Bearer {your JWT token}"
 			});
+			
 			c.AddSecurityRequirement(new OpenApiSecurityRequirement
 			{
 				{
@@ -34,7 +42,19 @@ public static class SwaggerExtensions
 				}
 			});
 			
+			c.MapType<Leaderboard.LeaderBoard.Models.GameMode>(() => new OpenApiSchema
+			{
+				Type = "string",
+				Enum = new List<IOpenApiAny>
+				{
+					new OpenApiString("Classic"),
+					new OpenApiString("Tournament")
+				},
+				Description = "Game mode: Classic for standard play, Tournament for competitive events"
+			});
+			
 			c.OperationFilter<IdempotencyHeaderOperationFilter>();
+			c.OperationFilter<GameModeOperationFilter>();
 		});
 		return services;
 	}
@@ -58,5 +78,39 @@ public class IdempotencyHeaderOperationFilter : IOperationFilter
 			Schema = new OpenApiSchema { Type = "string", Format = "uuid" },
 			Description = "Client-generated UUID to guarantee idempotent processing"
 		});
+	}
+}
+
+public class GameModeOperationFilter : IOperationFilter
+{
+	public void Apply(OpenApiOperation operation, OperationFilterContext context)
+	{
+		if (context.MethodInfo.DeclaringType?.Name == "LeaderboardController")
+		{
+			var methodName = context.MethodInfo.Name;
+			
+			switch (methodName)
+			{
+				case "Submit":
+					operation.Summary = "Submit match score for specific game mode";
+					operation.Description = "Submit a player's score for either Classic or Tournament mode. Each mode maintains separate leaderboards.";
+					break;
+					
+				case "Top":
+					operation.Summary = "Get top players for specific game mode";
+					operation.Description = "Retrieve the highest-scoring players for the specified game mode. Results are cached for optimal performance.";
+					break;
+					
+				case "Me":
+					operation.Summary = "Get my ranking in specific game mode";
+					operation.Description = "Get the authenticated user's current rank and score in the specified game mode.";
+					break;
+					
+				case "AroundMe":
+					operation.Summary = "Get players around my ranking";
+					operation.Description = "Get players ranked above and below the authenticated user in the specified game mode.";
+					break;
+			}
+		}
 	}
 }

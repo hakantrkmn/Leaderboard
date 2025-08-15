@@ -26,7 +26,7 @@ public class DBContext : DbContext
         user.Property(u => u.TrophyCount).HasDefaultValue(0);
 
         var lb = modelBuilder.Entity<LeaderboardEntry>();
-		lb.HasKey(e => e.UserId);
+		lb.HasKey(e => new { e.UserId, e.GameMode });  
 		lb.Property(e => e.Score).IsRequired();
 		lb.Property(e => e.UpdatedAtUtc).HasDefaultValueSql("NOW() AT TIME ZONE 'utc'");
 		lb.Property(e => e.RegistrationDateUtc)
@@ -34,13 +34,16 @@ public class DBContext : DbContext
 			.HasDefaultValueSql("NOW() AT TIME ZONE 'utc'");
 		lb.Property(e => e.PlayerLevel).HasDefaultValue(1);
 		lb.Property(e => e.TrophyCount).HasDefaultValue(0);
+		lb.Property(e => e.GameMode).IsRequired().HasDefaultValue(GameMode.Classic);
 		lb.HasOne<User>()
 			.WithMany()
 			.HasForeignKey(e => e.UserId)
 			.OnDelete(DeleteBehavior.Cascade);
 
-		lb.HasIndex(e => new { e.Score, e.RegistrationDateUtc, e.PlayerLevel, e.TrophyCount })
-			.HasDatabaseName("IX_Leaderboard_Ranking");
+		lb.HasIndex(e => new { e.GameMode, e.Score, e.RegistrationDateUtc, e.PlayerLevel, e.TrophyCount })
+			.HasDatabaseName("IX_Leaderboard_GameMode_Ranking");
+		lb.HasIndex(e => new { e.UserId, e.GameMode })
+			.HasDatabaseName("IX_Leaderboard_User_GameMode");
 
         modelBuilder.Entity<LeaderboardAroundRow>().HasNoKey();
 

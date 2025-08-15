@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Leaderboard.LeaderBoard.DTO;
 using Leaderboard.LeaderBoard.Interfaces;
+using Leaderboard.LeaderBoard.Models;
 using Leaderboard.Filters;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -25,47 +26,118 @@ public class LeaderboardController : ControllerBase
 	[EnableRateLimiting("submit")]
 	public async Task<IActionResult> Submit([FromBody] SubmitMatchRequest request, CancellationToken ct)
 	{
-		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-		if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-		await _service.SubmitAsync(userId, request, ct);
-		return NoContent();
-	}
-
-	[HttpGet("top")]
-	[ActionMetric]
-	[EnableRateLimiting("top")]
-	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> Top([FromQuery] int n = 100, CancellationToken ct = default)
-	{
-		try {
-			n = Math.Clamp(n, 1, 1000);
-			var top = await _service.GetTopAsync(n, ct);
-			return Ok(top);
+		try 
+		{
+			var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+			if (!Guid.TryParse(userIdStr, out var userId)) 
+				return Unauthorized(new { success = false, message = "Invalid user token" });
+			
+			await _service.SubmitAsync(userId, request, ct);
+			return Ok(new { 
+				success = true, 
+				message = $"Score {request.Score} successfully submitted for {request.GameMode} mode",
+				data = new { 
+					score = request.Score, 
+					gameMode = request.GameMode.ToString(),
+					submittedAt = DateTime.UtcNow 
+				}
+			});
 		}
 		catch (Exception ex)
 		{
-			Console.WriteLine(ex.Message);
-			return StatusCode(500, "Failed to get top scores");
+			return BadRequest(new { success = false, message = ex.Message });
+		}
+	}
+
+	[HttpGet("top/{gameMode}")]
+	[ActionMetric]
+	[EnableRateLimiting("top")]
+	public async Task<IActionResult> Top(
+		GameMode gameMode, 
+		[FromQuery] int n = 100, 
+		CancellationToken ct = default)
+	{
+		try {
+			n = Math.Clamp(n, 1, 1000);
+			var top = await _service.GetTopAsync(gameMode, n, ct);
+			return Ok(new { 
+				success = true, 
+				message = $"Top {top?.Count ?? 0} players retrieved for {gameMode} mode",
+				data = top,
+				metadata = new { 
+					gameMode = gameMode.ToString(), 
+					requestedCount = n,
+					actualCount = top?.Count ?? 0
+				}
+			});
+		}
+		catch (Exception ex)
+		{
+			return StatusCode(500, new { success = false, message = "Failed to get top scores", error = ex.Message });
 		}
 	}
 
 	[Authorize]
-	[HttpGet("me")]
-	public async Task<ActionResult<LeaderboardEntryResponse>> Me(CancellationToken ct)
+	[HttpGet("me/{gameMode}")]
+	public async Task<IActionResult> Me(GameMode gameMode, CancellationToken ct)
 	{
-		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-		if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-		var me = await _service.GetMyStandingAsync(userId, ct);
-		return me is null ? NotFound() : Ok(me);
+		try 
+		{
+			var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+			if (!Guid.TryParse(userIdStr, out var userId)) 
+				return Unauthorized(new { success = false, message = "Invalid user token" });
+			
+			var me = await _service.GetMyStandingAsync(userId, gameMode, ct);
+			if (me is null)
+				return Ok(new { 
+					success = false, 
+					message = $"No ranking found for user in {gameMode} mode",
+					data = (object?)null
+				});
+			
+			return Ok(new { 
+				success = true, 
+				message = $"Your ranking in {gameMode} mode: #{me.Rank}",
+				data = me,
+				metadata = new { gameMode = gameMode.ToString() }
+			});
+		}
+		catch (Exception ex)
+		{
+			return StatusCode(500, new { success = false, message = "Failed to get user ranking", error = ex.Message });
+		}
 	}
 
 	[Authorize]
-	[HttpGet("around-me")]
-	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> AroundMe([FromQuery] int k = 5, CancellationToken ct = default)
+	[HttpGet("around-me/{gameMode}")]
+	public async Task<IActionResult> AroundMe(
+		GameMode gameMode, 
+		[FromQuery] int k = 5, 
+		CancellationToken ct = default)
 	{
-		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-		if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-		var res = await _service.GetAroundMeAsync(userId, k, ct);
-		return Ok(res);
+		try 
+		{
+			var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+			if (!Guid.TryParse(userIdStr, out var userId)) 
+				return Unauthorized(new { success = false, message = "Invalid user token" });
+			
+			k = Math.Clamp(k, 1, 50);
+			var res = await _service.GetAroundMeAsync(userId, gameMode, k, ct);
+			return Ok(new { 
+				success = true, 
+				message = $"Found {res.Count} players around your position in {gameMode} mode",
+				data = res,
+				metadata = new { 
+					gameMode = gameMode.ToString(), 
+					range = k,
+					foundCount = res.Count 
+				}
+			});
+		}
+		catch (Exception ex)
+		{
+			return StatusCode(500, new { success = false, message = "Failed to get players around you", error = ex.Message });
+		}
 	}
 
 

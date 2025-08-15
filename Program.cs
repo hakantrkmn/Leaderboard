@@ -6,6 +6,7 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Prometheus;
+using System.Text.Json.Serialization;
 
 try
 {
@@ -38,6 +39,11 @@ builder.Logging.ClearProviders();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<Leaderboard.Filters.LoggingActionFilter>();
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.PropertyNamingPolicy = null; 
 });
 
 

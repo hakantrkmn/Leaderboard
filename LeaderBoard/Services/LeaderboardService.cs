@@ -38,30 +38,40 @@ public class LeaderboardService : ILeaderboardService
 	public async Task SubmitAsync(Guid userId, SubmitMatchRequest request, CancellationToken ct = default)
 	{
         await ValidateScoreSubmission(userId, request, ct);
+        
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        if (user is null) throw new InvalidOperationException("User not found");
-
-        if (request.PlayerLevel.HasValue) user.PlayerLevel = request.PlayerLevel.Value;
-        if (request.TrophyCount.HasValue) user.TrophyCount = request.TrophyCount.Value;
-        await _db.SaveChangesAsync(ct);
-
-        var entry = new LeaderboardEntry
+        try
         {
-            UserId = userId,
-            Score = request.Score,
-            UpdatedAtUtc = DateTime.UtcNow,
-            RegistrationDateUtc = user.RegistrationDate,
-            PlayerLevel = user.PlayerLevel,
-            TrophyCount = user.TrophyCount
-        };
-        await _repo.UpsertAsync(entry, ct);
-        await tx.CommitAsync(ct);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+            if (user is null) throw new InvalidOperationException("User not found");
 
-        var scoreRange = GetScoreRange((int)request.Score);
-        AppMetrics.ScoreSubmissionsTotal.WithLabels(userId.ToString(), scoreRange).Inc();
+            if (request.PlayerLevel.HasValue) user.PlayerLevel = request.PlayerLevel.Value;
+            if (request.TrophyCount.HasValue) user.TrophyCount = request.TrophyCount.Value;
+            await _db.SaveChangesAsync(ct);
 
-        await _redis.KeyDeleteAsync($"lb:top:{TopCacheSize}");
+            var entry = new LeaderboardEntry
+            {
+                UserId = userId,
+                Score = request.Score,
+                UpdatedAtUtc = DateTime.UtcNow,
+                RegistrationDateUtc = user.RegistrationDate,
+                PlayerLevel = user.PlayerLevel,
+                TrophyCount = user.TrophyCount,
+                GameMode = request.GameMode
+            };
+            await _repo.UpsertAsync(entry, ct);
+            
+            await tx.CommitAsync(ct);
+            
+            await _redis.KeyDeleteAsync($"lb:top:{request.GameMode}:{TopCacheSize}");
+            
+            var scoreRange = GetScoreRange((int)request.Score);
+            AppMetrics.ScoreSubmissionsTotal.WithLabels(userId.ToString(), scoreRange).Inc();
+        }
+        catch
+        {
+            throw;
+        }
 	}
 
     private static string GetScoreRange(int score)
@@ -77,11 +87,11 @@ public class LeaderboardService : ILeaderboardService
         };
     }
 
-    public async Task<IReadOnlyList<LeaderboardEntryResponse>?> GetTopAsync(int n, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LeaderboardEntryResponse>?> GetTopAsync(GameMode gameMode, int n, CancellationToken ct = default)
 	{
         try {
         n = Math.Clamp(n, 1, TopCacheSize);
-        var cacheKey = $"lb:top:{TopCacheSize}";
+        var cacheKey = $"lb:top:{gameMode}:{TopCacheSize}";
         var cached = await _redis.StringGetAsync(cacheKey);
         if (cached.HasValue)
         {
@@ -93,7 +103,7 @@ public class LeaderboardService : ILeaderboardService
             }
         }
 
-        var list = await _repo.GetTopAsync(TopCacheSize, ct);
+        var list = await _repo.GetTopAsync(gameMode, TopCacheSize, ct);
         var responses = new List<LeaderboardEntryResponse>(list.Count);
         for (int i = 0; i < list.Count; i++)
             responses.Add(new LeaderboardEntryResponse(list[i].UserId, list[i].Score, i + 1));
@@ -109,16 +119,16 @@ public class LeaderboardService : ILeaderboardService
         }
 	}
 
-	public async Task<LeaderboardEntryResponse?> GetMyStandingAsync(Guid userId, CancellationToken ct = default)
+	public async Task<LeaderboardEntryResponse?> GetMyStandingAsync(Guid userId, GameMode gameMode, CancellationToken ct = default)
 	{
-		var rank = await _repo.GetUserRankAsync(userId, ct);
-		var entry = await _repo.GetByUserIdAsync(userId, ct);
+		var rank = await _repo.GetUserRankAsync(userId, gameMode, ct);
+		var entry = await _repo.GetByUserIdAsync(userId, gameMode, ct);
 		return (rank is null || entry is null) ? null : new LeaderboardEntryResponse(userId, entry.Score, rank.Value);
 	}
 
     private async Task ValidateScoreSubmission(Guid userId, SubmitMatchRequest request, CancellationToken ct)
     {
-        var currentEntry = await _repo.GetByUserIdAsync(userId, ct);
+        var currentEntry = await _repo.GetByUserIdAsync(userId, request.GameMode, ct);
         var currentScore = currentEntry?.Score ?? 0;
 
         var maxIncrease = CalculateMaxAllowedIncrease(currentScore);
@@ -129,7 +139,7 @@ public class LeaderboardService : ILeaderboardService
             throw new ValidationException($"Score increase too dramatic: {currentScore} -> {request.Score}. Max allowed: {maxIncrease}");
         }
 
-        var lastSubmission = await GetLastSubmissionTime(userId, ct);
+        var lastSubmission = await GetLastSubmissionTime(userId, request.GameMode, ct);
         if (lastSubmission.HasValue && DateTime.UtcNow - lastSubmission.Value < TimeSpan.FromMinutes(1))
         {
             throw new ValidationException("Too frequent score submissions. Please wait at least 1 minute between submissions.");
@@ -145,15 +155,15 @@ public class LeaderboardService : ILeaderboardService
         return (long)(currentScore * 0.2); 
     }
 
-    private async Task<DateTime?> GetLastSubmissionTime(Guid userId, CancellationToken ct)
+    private async Task<DateTime?> GetLastSubmissionTime(Guid userId, GameMode gameMode, CancellationToken ct)
     {
-        var entry = await _repo.GetByUserIdAsync(userId, ct);
+        var entry = await _repo.GetByUserIdAsync(userId, gameMode, ct);
         return entry?.UpdatedAtUtc;
     }
-	public async Task<IReadOnlyList<LeaderboardEntryResponse>> GetAroundMeAsync(Guid userId, int k, CancellationToken ct = default)
+	public async Task<IReadOnlyList<LeaderboardEntryResponse>> GetAroundMeAsync(Guid userId, GameMode gameMode, int k, CancellationToken ct = default)
 	{
 		k = Math.Clamp(k, 1, 50);
-		var rows = await _repo.GetAroundMeAsync(userId, k, ct);
+		var rows = await _repo.GetAroundMeAsync(userId, gameMode, k, ct);
 		return rows.Select(r => new LeaderboardEntryResponse(r.UserId, r.Score, r.Rn)).ToList();
 	}
 
