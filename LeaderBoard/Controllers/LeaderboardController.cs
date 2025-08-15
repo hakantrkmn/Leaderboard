@@ -58,6 +58,16 @@ public class LeaderboardController : ControllerBase
 		return me is null ? NotFound() : Ok(me);
 	}
 
+	[Authorize]
+	[HttpGet("around-me")]
+	public async Task<ActionResult<IReadOnlyList<LeaderboardEntryResponse>>> AroundMe([FromQuery] int k = 5, CancellationToken ct = default)
+	{
+		var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+		if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+		var res = await _service.GetAroundMeAsync(userId, k, ct);
+		return Ok(res);
+	}
+
 
 
 
