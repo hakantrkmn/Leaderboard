@@ -87,16 +87,45 @@ That's it! The system creates all necessary database tables automatically.
 
 If you want to run it locally for development:
 
+#### Option 1: Local API with Docker Databases
+
 ```bash
 # Start just the databases
 docker-compose up -d postgres redis
 
-# Run the API locally
-dotnet run
+# Run the API locally on port 5088
+dotnet run --urls "http://localhost:5088"
 
 # Apply any pending migrations
 dotnet ef database update
 ```
+
+#### Option 2: Full Local Development (Recommended)
+
+If you want to run the API locally but use Docker for databases and monitoring:
+
+1. **Copy development environment variables**
+   ```bash
+   # Copy .env.development contents to .env
+   cp .env.development .env
+   ```
+
+2. **Start with development compose file**
+   ```bash
+   # Use docker-compose-dev.yaml for local development
+   docker-compose -f docker-compose-dev.yaml up -d
+   ```
+
+3. **Run the API locally**
+   ```bash
+   dotnet run --urls "http://localhost:5088"
+   ```
+
+This approach gives you:
+- Local API development with hot reload
+- Docker databases (PostgreSQL, Redis)
+- Docker monitoring stack (Prometheus, Grafana)
+- Development-specific configurations
 
 ## 📚 API Documentation
 
@@ -445,6 +474,8 @@ leaderboard_security_validation_failures_total{validation_type, user_id, endpoin
 
 ### Environment Variables
 
+#### Production Environment Variables
+
 ```bash
 # Database
 DB_CONNECTION_STRING="Host=localhost;Database=leaderboard;Username=postgres;Password=postgres"
@@ -459,6 +490,33 @@ JWT_EXPIRATION_HOURS=24
 # Rate Limiting
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW_MINUTES=1
+```
+
+#### Development Environment Variables (.env.development)
+
+Create a `.env.development` file for local development:
+
+```bash
+# Database
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=leaderboard
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# JWT
+JWT_SECRET=dev-secret-key-change-in-production
+JWT_ISSUER=LeaderboardAPI-Dev
+JWT_AUDIENCE=LeaderboardUsers-Dev
+JWT_ACCESS_TOKEN_MINUTES=60
+
+# Connection Strings
+ConnectionStrings__PostgreSQL=Host=localhost;Database=leaderboard;Username=postgres;Password=postgres;Port=5432
+ConnectionStrings__Redis=localhost:6379
 ```
 
 ### Docker Compose Configuration
