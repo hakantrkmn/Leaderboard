@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: 'leaderboard-api'
     static_configs:
-      - targets: ['host.docker.internal:5089']
+      - targets: ['lb-api:8080']
     metrics_path: '/metrics'
     scrape_interval: 5s
 

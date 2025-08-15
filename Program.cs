@@ -54,20 +54,7 @@ builder.Services.AddJwtAuth(builder.Configuration);
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<DBContext>();
-    try
-    {
-        dbContext.Database.Migrate();
-        Log.Information("Database migrations applied successfully");
-    }
-    catch (Exception ex)
-    {
-        Log.Error(ex, "An error occurred while applying database migrations");
-        throw;
-    }
-}
+
 
 app.UseMiddleware<Leaderboard.Middleware.StructuredLoggingMiddleware>();
 
