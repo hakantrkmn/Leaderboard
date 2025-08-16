@@ -7,6 +7,8 @@ public interface IScriptEngineService
 {
     T ExecuteScript<T>(string scriptName, string functionName, params object[] parameters);
     void LoadScript(string scriptName);
+    bool HasScript(string scriptName);
+    bool HasFunction(string scriptName, string functionName); // Yeni method
 }
 
 public class ScriptEngineService : IScriptEngineService
@@ -86,6 +88,47 @@ public class ScriptEngineService : IScriptEngineService
         }
     }
     
+    public bool HasScript(string scriptName)
+    {
+        try
+        {
+            var scriptPath = Path.Combine(_scriptsPath, $"{scriptName}.js");
+            var exists = File.Exists(scriptPath);
+            
+            _logger.LogInformation("Checking if script exists: {ScriptName} -> {Exists}", scriptName, exists);
+            
+            return exists;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking if script exists: {ScriptName}", scriptName);
+            return false;
+        }
+    }
+
+    public bool HasFunction(string scriptName, string functionName)
+    {
+        try
+        {
+            // Önce script'i yükle
+            LoadScript(scriptName);
+            
+            // Fonksiyon var mı kontrol et
+            var hasFunction = _engine!.GetValue(functionName) != null;
+            
+            _logger.LogInformation("Checking if function exists: {ScriptName}.{FunctionName} -> {Exists}", 
+                scriptName, functionName, hasFunction);
+            
+            return hasFunction;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking if function exists: {ScriptName}.{FunctionName}", 
+                scriptName, functionName);
+            return false;
+        }
+    }
+
     public T ExecuteScript<T>(string scriptName, string functionName, params object[] parameters)
     {
         try

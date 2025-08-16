@@ -38,16 +38,22 @@ public class LeaderboardController : ControllerBase
 			if (!Guid.TryParse(userIdStr, out var userId)) 
 				return Unauthorized(new { success = false, message = "Invalid user token" });
 			//check if current date is weekend
-			if (DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday)
-			{
-				//check if bonus is weekend_bonus
-				if (request.Bonus?.Contains("weekend_bonus") ?? false)
+
+				if(request.Bonus is not null) 
 				{
-					bonus = _scriptEngine.ExecuteScript<int>("calculator", "weekend_bonus", request.Score);
-					AppMetrics.BonusUsageTotal.WithLabels("weekend_bonus", request.GameMode.ToString()).Inc();
-					AppMetrics.BonusAmountHistogram.WithLabels("weekend_bonus", request.GameMode.ToString()).Observe(bonus.Value);
+					foreach (var bonusType in request.Bonus)
+					{
+						if(_scriptEngine.HasFunction("calculator", bonusType))
+						{
+							var bonusAmount = _scriptEngine.ExecuteScript<int>("calculator", bonusType, request.Score);
+							bonus = bonusAmount; // bonus değişkenini set et
+							request.Score = bonusAmount;
+							AppMetrics.BonusUsageTotal.WithLabels(bonusType, request.GameMode.ToString()).Inc();
+							AppMetrics.BonusAmountHistogram.WithLabels(bonusType, request.GameMode.ToString()).Observe(bonusAmount);
+						}
+					}
 				}
-			}
+				
 			await _service.SubmitAsync(userId, request, ct);
 			return Ok(new { 
 				success = true, 
