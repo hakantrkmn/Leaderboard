@@ -999,6 +999,96 @@
           }
         }
       ]
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "🎁 Weekend Bonus - Classic",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 56 },
+      "targets": [
+        {
+          "expr": "sum(leaderboard_bonus_usage_total{bonus_type=\"weekend_bonus\", game_mode=\"Classic\"})",
+          "legendFormat": "Weekend Bonus - Classic"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "🎁 Weekend Bonus - Tournament",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 56 },
+      "targets": [
+        {
+          "expr": "sum(leaderboard_bonus_usage_total{bonus_type=\"weekend_bonus\", game_mode=\"Tournament\"})",
+          "legendFormat": "Weekend Bonus - Tournament"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "🎁 Total Bonus Usage",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 56 },
+      "targets": [
+        {
+          "expr": "sum(leaderboard_bonus_usage_total)",
+          "legendFormat": "Total Bonus Usage"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
     }
   ],
   "time": {

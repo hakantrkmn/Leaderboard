@@ -8,12 +8,25 @@ EXPOSE 443
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+# Install Node.js and npm
+RUN apt-get update && apt-get install -y \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy project file and restore dependencies
 COPY ["Leaderboard.csproj", "./"]
 RUN dotnet restore "Leaderboard.csproj"
 
 # Copy source code and build
 COPY . .
+
+# Build TypeScript files
+RUN npm install && npm run build:ts
+
+# Build .NET application
 RUN dotnet build "Leaderboard.csproj" -c Release -o /app/build
 
 # Publish stage
@@ -34,6 +47,9 @@ WORKDIR /app
 
 # Copy published application
 COPY --from=publish /app/publish .
+
+# Copy TypeScript build output
+COPY --from=build /src/Scripts/dist ./Scripts/dist
 
 # Create non-root user for security
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app

@@ -6,6 +6,8 @@ using Leaderboard.LeaderBoard.Interfaces;
 using Leaderboard.LeaderBoard.Models;
 using Leaderboard.Filters;
 using Microsoft.AspNetCore.RateLimiting;
+using Leaderboard.Scripts;
+using Leaderboard.Metrics;
 
 namespace Leaderboard.LeaderBoard.Controllers;
 
@@ -14,10 +16,12 @@ namespace Leaderboard.LeaderBoard.Controllers;
 public class LeaderboardController : ControllerBase
 {
 	private readonly ILeaderboardService _service;
+    private readonly IScriptEngineService _scriptEngine;
 
-	public LeaderboardController(ILeaderboardService service)
+	public LeaderboardController(ILeaderboardService service, IScriptEngineService scriptEngine)
 	{
 		_service = service;
+		_scriptEngine = scriptEngine;
 	}
 
     [Authorize]
@@ -27,16 +31,28 @@ public class LeaderboardController : ControllerBase
 	[EnableRateLimiting("submit")]
 	public async Task<IActionResult> Submit([FromBody] SubmitMatchRequest request, CancellationToken ct)
 	{
+		long? bonus = null;
 		try 
 		{
 			var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
 			if (!Guid.TryParse(userIdStr, out var userId)) 
 				return Unauthorized(new { success = false, message = "Invalid user token" });
-			
+			//check if current date is weekend
+			if (DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday)
+			{
+				//check if bonus is weekend_bonus
+				if (request.Bonus?.Contains("weekend_bonus") ?? false)
+				{
+					bonus = _scriptEngine.ExecuteScript<int>("calculator", "weekend_bonus", request.Score);
+					AppMetrics.BonusUsageTotal.WithLabels("weekend_bonus", request.GameMode.ToString()).Inc();
+					AppMetrics.BonusAmountHistogram.WithLabels("weekend_bonus", request.GameMode.ToString()).Observe(bonus.Value);
+				}
+			}
 			await _service.SubmitAsync(userId, request, ct);
 			return Ok(new { 
 				success = true, 
 				message = $"Score {request.Score} successfully submitted for {request.GameMode} mode",
+				bonus = bonus ?? 0,
 				data = new { 
 					score = request.Score, 
 					gameMode = request.GameMode.ToString(),

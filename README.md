@@ -108,6 +108,8 @@ If you want to run the API locally but use Docker for databases and monitoring:
 
 3. **Run the API locally**
    ```bash
+   npm run build:ts
+
    dotnet run --urls "http://localhost:5088"
    ```
 

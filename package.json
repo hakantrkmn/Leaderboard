@@ -1,0 +1,11 @@
+{
+  "name": "leaderboard-scripts",
+  "version": "1.0.0",
+  "scripts": {
+    "build:ts": "tsc",
+    "watch:ts": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

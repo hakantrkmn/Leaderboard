@@ -60,3 +60,9 @@ plan.md
 
 # Debug scripts  
 debug-metrics.sh
+
+node_modules/
+npm-debug.log*
+
+# TypeScript build output
+Scripts/dist/

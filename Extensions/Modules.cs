@@ -6,6 +6,7 @@ using Leaderboard.Auth.Services;
 using Leaderboard.LeaderBoard.Interfaces;
 using Leaderboard.LeaderBoard.Repositories;
 using Leaderboard.LeaderBoard.Services;
+using Leaderboard.Scripts;
 
 namespace Leaderboard.Extensions;
 
@@ -29,6 +30,7 @@ public static class Modules
     {
         services.AddScoped<ILeaderboardRepository, EfLeaderboardRepository>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddSingleton<IScriptEngineService, ScriptEngineService>();
         
         return services;
     }

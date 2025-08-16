@@ -42,7 +42,24 @@ public static class AppMetrics
             LabelNames = new[] { "controller", "action", "status" } 
         }
     );
+    public static readonly Counter BonusUsageTotal = Prometheus.Metrics.CreateCounter(
+        name: "leaderboard_bonus_usage_total",
+        help: "Total bonus usage by bonus type and game mode",
+        configuration: new CounterConfiguration
+        {
+            LabelNames = new[] { "bonus_type", "game_mode" }
+        }
+    );
 
+    public static readonly Histogram BonusAmountHistogram = Prometheus.Metrics.CreateHistogram(
+        name: "leaderboard_bonus_amount",
+        help: "Distribution of bonus amounts applied",
+        configuration: new HistogramConfiguration
+        {
+            LabelNames = new[] { "bonus_type", "game_mode" },
+            Buckets = new[] { 0.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0 }
+        }
+    );
     public static readonly Histogram ApiRequestDuration = Prometheus.Metrics.CreateHistogram(
         name: "api_request_duration_seconds",
         help: "API request duration by controller/action/status",
