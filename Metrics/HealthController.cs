@@ -10,9 +10,9 @@ namespace Leaderboard.Metrics;
 public class HealthController : ControllerBase
 {
     private readonly DBContext _dbContext;
-    private readonly IConnectionMultiplexer _redis;
+    private readonly IConnectionMultiplexer? _redis;
 
-    public HealthController(DBContext dbContext, IConnectionMultiplexer redis)
+    public HealthController(DBContext dbContext, IConnectionMultiplexer? redis = null)
     {
         _dbContext = dbContext;
         _redis = redis;
@@ -51,6 +51,11 @@ public class HealthController : ControllerBase
 
     private async Task<bool> CheckRedisAsync()
     {
+        if (_redis == null)
+        {
+            return false;
+        }
+
         try
         {
             var db = _redis.GetDatabase();

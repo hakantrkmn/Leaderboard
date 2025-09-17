@@ -49,6 +49,79 @@ This API powers competitive leaderboards where every match matters. Players subm
 
 ## 🚀 Quick Start
 
+### Development Environment (Local API + Docker Database)
+
+```bash
+# Start development services (PostgreSQL, Redis, PgAdmin, RedisInsight, Prometheus, Grafana)
+./dev.sh
+
+# Or manually:
+docker-compose --profile dev up -d
+
+# Run API locally (with hot-reload)
+dotnet run
+
+# API will be available at: http://localhost:5088
+# Swagger UI: http://localhost:5088/swagger
+```
+
+### Production Environment (Everything in Docker)
+
+```bash
+# Start full production stack
+./prod.sh
+
+# Or manually:
+docker-compose --profile prod up -d
+
+# API will be available at: http://localhost:8080
+# Grafana: http://localhost:3000 (admin/admin)
+# Prometheus: http://localhost:9090
+```
+
+### Available Services
+
+| Service | Development | Production | URL |
+|---------|-------------|------------|-----|
+| API | Local | Docker | http://localhost:8080 |
+| PostgreSQL | Docker | Docker | localhost:5432 |
+| Redis | Docker | Docker | localhost:6379 |
+| PgAdmin | Docker | - | http://localhost:5050 |
+| RedisInsight | Docker | - | http://localhost:5540 |
+| Prometheus | Docker | Docker | http://localhost:9090 |
+| Grafana | Docker | Docker | http://localhost:3000 |
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Database
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=leaderboard
+POSTGRES_PORT=5432
+
+# Redis
+REDIS_PORT=6379
+
+# JWT
+JWT_SECRET="your-super-secret-key-here"
+JWT_ISSUER="LeaderboardAPI"
+JWT_AUDIENCE="LeaderboardUsers"
+JWT_ACCESS_TOKEN_MINUTES=60
+
+# API
+API_PORT=8080
+API_HTTPS_PORT=8443
+
+# Monitoring (Production only)
+PROMETHEUS_PORT=9090
+GRAFANA_PORT=3000
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
+```
+
 ### Prerequisites
 
 You'll need Docker and Docker Compose. That's it.
