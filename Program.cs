@@ -1,6 +1,7 @@
 using DotNetEnv;
 using Leaderboard.Extensions;
 using Leaderboard.DB;
+using LeaderBoard.Settings;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -55,6 +56,12 @@ builder.Services.AddControllers(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<GameSettings>(builder.Configuration.GetSection(GameSettings.SectionName));
+builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection(AuthSettings.SectionName));
+builder.Services.Configure<FilterSettings>(builder.Configuration.GetSection(FilterSettings.SectionName));
+builder.Services.Configure<RateLimitSettings>(builder.Configuration.GetSection(RateLimitSettings.SectionName));
+builder.Services.Configure<LoggingSettings>(builder.Configuration.GetSection(LoggingSettings.SectionName));
 
 try
 {

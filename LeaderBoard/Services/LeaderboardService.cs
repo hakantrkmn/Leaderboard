@@ -9,6 +9,8 @@ using Leaderboard.LeaderBoard.Interfaces;
 using Leaderboard.LeaderBoard.Models;
 using System.ComponentModel.DataAnnotations;
 using Leaderboard.Metrics;
+using Microsoft.Extensions.Options;
+using LeaderBoard.Settings;
 
 namespace Leaderboard.LeaderBoard.Services;
 
@@ -19,25 +21,30 @@ public class LeaderboardService : ILeaderboardService
     private readonly IUserRepository _userRepository;
     private readonly DBContext _db;
     private readonly ILogger<LeaderboardService> _logger;
-	private const int TopCacheSize = 100;
+    private readonly GameSettings _gameSettings;
+    private readonly IScoreValidator _scoreValidator;
 
     public LeaderboardService(
         ILeaderboardRepository repo, 
         IConnectionMultiplexer mux, 
         IUserRepository userRepository, 
         DBContext db,
-        ILogger<LeaderboardService> logger)
+        ILogger<LeaderboardService> logger,
+        IOptions<GameSettings> gameSettings,
+        IScoreValidator scoreValidator)
     {
         _repo = repo;
         _redis = mux.GetDatabase();
         _userRepository = userRepository;
         _db = db;
         _logger = logger;
+        _gameSettings = gameSettings.Value;
+        _scoreValidator = scoreValidator;
     }
 
 	public async Task SubmitAsync(Guid userId, SubmitMatchRequest request, CancellationToken ct = default)
 	{
-        await ValidateScoreSubmission(userId, request, ct);
+        await _scoreValidator.ValidateAsync(userId, request, ct);
         
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
@@ -63,35 +70,44 @@ public class LeaderboardService : ILeaderboardService
             
             await tx.CommitAsync(ct);
             
-            await _redis.KeyDeleteAsync($"lb:top:{request.GameMode}:{TopCacheSize}");
+            await _redis.KeyDeleteAsync($"lb:top:{request.GameMode}:{_gameSettings.TopCacheSize}");
             
             var scoreRange = GetScoreRange((int)request.Score);
             AppMetrics.ScoreSubmissionsTotal.WithLabels(userId.ToString(), scoreRange).Inc();
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Transaction failed while submitting score for user {UserId}. Rolling back.", userId);
+            await tx.RollbackAsync(ct);
             throw;
         }
 	}
 
-    private static string GetScoreRange(int score)
+    private string GetScoreRange(int score)
     {
-        return score switch
+        for (int i = 0; i < _gameSettings.ScoreRanges.Length; i++)
         {
-            < 1000 => "0-999",
-            < 5000 => "1000-4999",
-            < 10000 => "5000-9999",
-            < 50000 => "10000-49999",
-            < 100000 => "50000-99999",
-            _ => "100000+"
-        };
+            if (score < _gameSettings.ScoreRanges[i])
+            {
+                // Assuming ScoreRangeLabels has one more element than ScoreRanges for the "else" case
+                if (i < _gameSettings.ScoreRangeLabels.Length)
+                    return _gameSettings.ScoreRangeLabels[i];
+            }
+        }
+        
+        // Return the last label for scores greater than or equal to the last range
+        if (_gameSettings.ScoreRangeLabels.Length > _gameSettings.ScoreRanges.Length)
+            return _gameSettings.ScoreRangeLabels[^1];
+
+        // Fallback in case of configuration mismatch
+        return "unknown";
     }
 
     public async Task<IReadOnlyList<LeaderboardEntryResponse>?> GetTopAsync(GameMode gameMode, int n, CancellationToken ct = default)
 	{
         try {
-        n = Math.Clamp(n, 1, TopCacheSize);
-        var cacheKey = $"lb:top:{gameMode}:{TopCacheSize}";
+        n = Math.Clamp(n, 1, _gameSettings.TopCacheSize);
+        var cacheKey = $"lb:top:{gameMode}:{_gameSettings.TopCacheSize}";
         var cached = await _redis.StringGetAsync(cacheKey);
         if (cached.HasValue)
         {
@@ -103,13 +119,13 @@ public class LeaderboardService : ILeaderboardService
             }
         }
 
-        var list = await _repo.GetTopAsync(gameMode, TopCacheSize, ct);
+        var list = await _repo.GetTopAsync(gameMode, _gameSettings.TopCacheSize, ct);
         var responses = new List<LeaderboardEntryResponse>(list.Count);
         for (int i = 0; i < list.Count; i++)
             responses.Add(new LeaderboardEntryResponse(list[i].UserId, list[i].Score, i + 1));
 
         var json = JsonSerializer.Serialize(responses);
-        await _redis.StringSetAsync(cacheKey, json, TimeSpan.FromSeconds(30));
+        await _redis.StringSetAsync(cacheKey, json, TimeSpan.FromSeconds(_gameSettings.DefaultCacheExpirationSeconds));
         return responses.Count >= n ? responses.GetRange(0, n) : responses;
         }
         catch (Exception ex)
@@ -126,43 +142,9 @@ public class LeaderboardService : ILeaderboardService
 		return (rank is null || entry is null) ? null : new LeaderboardEntryResponse(userId, entry.Score, rank.Value);
 	}
 
-    private async Task ValidateScoreSubmission(Guid userId, SubmitMatchRequest request, CancellationToken ct)
-    {
-        var currentEntry = await _repo.GetByUserIdAsync(userId, request.GameMode, ct);
-        var currentScore = currentEntry?.Score ?? 0;
-
-        var maxIncrease = CalculateMaxAllowedIncrease(currentScore);
-        if (request.Score > currentScore + maxIncrease)
-        {
-            _logger.LogWarning("Suspicious score increase detected for user {UserId}: {CurrentScore} -> {NewScore}", 
-                userId, currentScore, request.Score);
-            throw new ValidationException($"Score increase too dramatic: {currentScore} -> {request.Score}. Max allowed: {maxIncrease}");
-        }
-
-        var lastSubmission = await GetLastSubmissionTime(userId, request.GameMode, ct);
-        if (lastSubmission.HasValue && DateTime.UtcNow - lastSubmission.Value < TimeSpan.FromMinutes(1))
-        {
-            throw new ValidationException("Too frequent score submissions. Please wait at least 1 minute between submissions.");
-        }
-
-    }
-
-    private long CalculateMaxAllowedIncrease(long currentScore)
-    {
-        if (currentScore < 1000) return 500;
-        if (currentScore < 10000) return (long)(currentScore * 0.5); 
-        if (currentScore < 100000) return (long)(currentScore * 0.3); 
-        return (long)(currentScore * 0.2); 
-    }
-
-    private async Task<DateTime?> GetLastSubmissionTime(Guid userId, GameMode gameMode, CancellationToken ct)
-    {
-        var entry = await _repo.GetByUserIdAsync(userId, gameMode, ct);
-        return entry?.UpdatedAtUtc;
-    }
 	public async Task<IReadOnlyList<LeaderboardEntryResponse>> GetAroundMeAsync(Guid userId, GameMode gameMode, int k, CancellationToken ct = default)
 	{
-		k = Math.Clamp(k, 1, 50);
+		k = Math.Clamp(k, 1, _gameSettings.AroundMeMaxRank);
 		var rows = await _repo.GetAroundMeAsync(userId, gameMode, k, ct);
 		return rows.Select(r => new LeaderboardEntryResponse(r.UserId, r.Score, r.Rn)).ToList();
 	}

@@ -2,23 +2,26 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Leaderboard.Metrics;
 using System.Security.Claims;
+using LeaderBoard.Settings;
+using Microsoft.Extensions.Options;
 
 namespace Leaderboard.Filters;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class TimestampValidationAttribute : Attribute, IAsyncActionFilter
 {
-    private readonly TimeSpan _maxAge;
-    private readonly TimeSpan _maxFuture;
-
-    public TimestampValidationAttribute(int maxAgeMinutes = 10, int maxFutureMinutes = 2)
-    {
-        _maxAge = TimeSpan.FromMinutes(maxAgeMinutes);
-        _maxFuture = TimeSpan.FromMinutes(maxFutureMinutes);
-    }
-
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        var settings = context.HttpContext.RequestServices.GetService<IOptions<FilterSettings>>()?.Value;
+        if (settings is null)
+        {
+            await next();
+            return;
+        }
+        
+        var maxAge = TimeSpan.FromMinutes(settings.DefaultMaxAgeMinutes);
+        var maxFuture = TimeSpan.FromMinutes(settings.DefaultMaxFutureMinutes);
+
         var http = context.HttpContext;
         var userId = GetUserId(http);
         var endpoint = GetEndpoint(context);
@@ -54,26 +57,26 @@ public sealed class TimestampValidationAttribute : Attribute, IAsyncActionFilter
         AppMetrics.TimestampAgeSeconds.WithLabels(endpoint, "measured").Observe(Math.Abs(age.TotalSeconds));
         
         // Çok eski request kontrolü (replay attack prevention)
-        if (age > _maxAge)
+        if (age > maxAge)
         {
             AppMetrics.ReplayAttackAttemptsTotal.WithLabels(userId, "timestamp_too_old", endpoint).Inc();
             AppMetrics.TimestampAgeSeconds.WithLabels(endpoint, "rejected_old").Observe(age.TotalSeconds);
             context.Result = new BadRequestObjectResult(new { 
                 success = false, 
-                message = $"Request too old. Maximum age: {_maxAge.TotalMinutes} minutes. Current age: {age.TotalMinutes:F1} minutes." 
+                message = $"Request too old. Maximum age: {maxAge.TotalMinutes} minutes. Current age: {age.TotalMinutes:F1} minutes." 
             });
             return;
         }
             
         // Gelecekten gelen request kontrolü (clock skew tolerance)
-        if (requestTime > now + _maxFuture)
+        if (requestTime > now + maxFuture)
         {
             var futureAge = requestTime - now;
             AppMetrics.ReplayAttackAttemptsTotal.WithLabels(userId, "timestamp_future", endpoint).Inc();
             AppMetrics.TimestampAgeSeconds.WithLabels(endpoint, "rejected_future").Observe(-futureAge.TotalSeconds);
             context.Result = new BadRequestObjectResult(new { 
                 success = false, 
-                message = $"Request timestamp too far in future. Maximum: {_maxFuture.TotalMinutes} minutes. Difference: {futureAge.TotalMinutes:F1} minutes." 
+                message = $"Request timestamp too far in future. Maximum: {maxFuture.TotalMinutes} minutes. Difference: {futureAge.TotalMinutes:F1} minutes." 
             });
             return;
         }

@@ -59,7 +59,7 @@ This API powers competitive leaderboards where every match matters. Players subm
 docker-compose --profile dev up -d
 
 # Run API locally (with hot-reload)
-dotnet run
+dotnet run --urls "http://localhost:5088"
 
 # API will be available at: http://localhost:5088
 # Swagger UI: http://localhost:5088/swagger
@@ -75,6 +75,7 @@ dotnet run
 docker-compose --profile prod up -d
 
 # API will be available at: http://localhost:8080
+# Swagger UI: http://localhost:8080/swagger
 # Grafana: http://localhost:3000 (admin/admin)
 # Prometheus: http://localhost:9090
 ```
@@ -83,7 +84,7 @@ docker-compose --profile prod up -d
 
 | Service | Development | Production | URL |
 |---------|-------------|------------|-----|
-| API | Local | Docker | http://localhost:8080 |
+| API | Local (5088) | Docker (8080) | http://localhost:5088 / 8080 |
 | PostgreSQL | Docker | Docker | localhost:5432 |
 | Redis | Docker | Docker | localhost:6379 |
 | PgAdmin | Docker | - | http://localhost:5050 |
@@ -111,15 +112,35 @@ JWT_ISSUER="LeaderboardAPI"
 JWT_AUDIENCE="LeaderboardUsers"
 JWT_ACCESS_TOKEN_MINUTES=60
 
+# Database
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=leaderboard
+POSTGRES_PORT=5432
+POSTGRES_CONNECTION_STRING="Host=localhost;Port=5432;Database=leaderboard;Username=postgres;Password=postgres"
+
+# Redis
+REDIS_PORT=6379
+REDIS_CONNECTION_STRING="localhost:6379,abortConnect=false,connectTimeout=10000,syncTimeout=10000"
+
 # API
 API_PORT=8080
 API_HTTPS_PORT=8443
+
+# Development Tools
+PGADMIN_PORT=5050
+PGADMIN_DEFAULT_EMAIL=admin@local
+PGADMIN_DEFAULT_PASSWORD=admin
+REDISINSIGHT_PORT=5540
 
 # Monitoring (Production only)
 PROMETHEUS_PORT=9090
 GRAFANA_PORT=3000
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
+
+# ASP.NET Core
+ASPNETCORE_ENVIRONMENT=Development
 ```
 
 ### Prerequisites
@@ -134,20 +155,32 @@ You'll need Docker and Docker Compose. That's it.
    cd Leaderboard
    ```
 
-2. **Fire It Up**
+2. **Create Environment Configuration**
    ```bash
-   # create .env file
-   # Copy .env.prod contents to .env
-   # docker-compose up -d
+   # Create .env file with your environment variables
+   # Copy the production template from the README above
+   # Or use the development template for local development
    ```
 
-3. **Verify Everything's Working**
+3. **Fire It Up**
    ```bash
-   # Check API health
-   curl http://localhost:5088/Health
+   # For production (everything in Docker)
+   ./prod.sh
+
+   # For development (API local, services in Docker)
+   ./dev.sh
+   dotnet run --urls "http://localhost:5088"
+   ```
+
+4. **Verify Everything's Working**
+   ```bash
+# Check API health (use appropriate port based on your setup)
+curl http://localhost:5088/Health  # For local development
+curl http://localhost:8080/Health  # For Docker production
    
-   # View Swagger docs
-   open http://localhost:5088/swagger
+# View Swagger docs
+open http://localhost:5088/swagger  # For local development
+open http://localhost:8080/swagger  # For Docker production
    
    # Check Grafana dashboard (includes security monitoring)
    open http://localhost:3000
@@ -167,22 +200,49 @@ If you want to run it locally for development:
 
 If you want to run the API locally but use Docker for databases and monitoring:
 
-1. **Copy development environment variables**
+1. **Create .env file for development**
    ```bash
-   # Copy .env.development contents to .env
-   cp .env.development .env
+   # Create .env file with development settings
+   cat > .env << EOF
+   # Database
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=leaderboard
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+
+   # Redis
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+
+   # JWT
+   JWT_SECRET=dev-secret-key-change-in-production
+   JWT_ISSUER=LeaderboardAPI-Dev
+   JWT_AUDIENCE=LeaderboardUsers-Dev
+   JWT_ACCESS_TOKEN_MINUTES=60
+
+   # Connection Strings
+   ConnectionStrings__PostgreSQL=Host=localhost;Database=leaderboard;Username=postgres;Password=postgres;Port=5432
+   ConnectionStrings__Redis=localhost:6379
+
+   # ASP.NET Core
+   ASPNETCORE_ENVIRONMENT=Development
+   EOF
    ```
 
-2. **Start with development compose file**
+2. **Start development services**
    ```bash
-   # Use docker-compose-dev.yaml for local development
-   docker-compose -f docker-compose-dev.yaml up -d
+   # Start databases and monitoring with development profile
+   ./dev.sh
    ```
 
-3. **Run the API locally**
+3. **Build TypeScript scripts**
    ```bash
    npm run build:ts
+   ```
 
+4. **Run the API locally**
+   ```bash
    dotnet run --urls "http://localhost:5088"
    ```
 
@@ -191,6 +251,7 @@ This approach gives you:
 - Docker databases (PostgreSQL, Redis)
 - Docker monitoring stack (Prometheus, Grafana)
 - Development-specific configurations
+- Hot-reload for .NET changes
 
 ## 📚 API Documentation
 
@@ -229,7 +290,8 @@ Headers:
   "score": 1500,
   "gameMode": "Classic",
   "playerLevel": 25,
-  "trophyCount": 150
+  "trophyCount": 150,
+  "bonus": ["weekend_bonus"]  // Optional: Array of bonus function names
 }
 ```
 
@@ -271,18 +333,59 @@ Response:
 **Get Players Around Me**
 ```bash
 GET /leaderboard/around-me/Classic?k=5
+Authorization: Bearer <jwt-token>
 
 # Returns 5 players above and below your rank
+```
+
+### User Management Endpoints
+
+**Get User by ID**
+```bash
+GET /api/users/{id}
+Authorization: Bearer <jwt-token>
+
+Response:
+{
+  "id": "uuid",
+  "username": "player123",
+  "registrationDateUtc": "2024-01-01T00:00:00Z"
+}
+```
+
+### Health & Monitoring Endpoints
+
+**Health Check**
+```bash
+GET /Health
+
+Response:
+{
+  "status": "Healthy",
+  "timestamp": "2024-01-01T12:00:00Z"
+}
+```
+
+**Metrics (Prometheus)**
+```bash
+GET /metrics
+
+# Returns Prometheus-formatted metrics including:
+# - Request counts and durations
+# - Security violations (replay attacks, idempotency conflicts)
+# - Database connection pool usage
+# - Cache hit/miss rates
+# - Bonus usage statistics
 ```
 
 ### Game Modes
 
 The system supports multiple game modes with separate leaderboards:
 
-- **Classic**: Standard gameplay mode
-- **Tournament**: Competitive events with special rules
+- **Classic** (GameMode.Classic = 1): Standard gameplay mode
+- **Tournament** (GameMode.Tournament = 2): Competitive events with special rules
 
-Each mode maintains its own rankings and cache keys.
+Each mode maintains its own rankings, cache keys, and scoring calculations.
 
 ## 🧮 Ranking Algorithm
 
@@ -305,6 +408,55 @@ Rank | Score | Reg Date    | Level | Trophies | Player
 ```
 
 This system rewards both skill (high scores) and loyalty (early adoption).
+
+## 🎯 Bonus System & Dynamic Scoring
+
+### TypeScript Scripting Engine
+
+The leaderboard supports dynamic bonus calculations through a TypeScript-based scripting system. This allows for flexible score modifications based on various conditions without redeploying the application.
+
+### Available Bonus Types
+
+**Weekend Bonus**
+```typescript
+function weekend_bonus(baseScore: number): number {
+    // Check if current date is weekend
+    const currentDate = new Date();
+    const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+    if(!isWeekend) {
+        return baseScore;
+    }
+    // If current date is weekend, return baseScore * 1.05
+    const levelBonus = 1.05;
+    return Math.floor(baseScore * levelBonus);
+}
+```
+
+### Using Bonuses in Score Submission
+
+```bash
+POST /leaderboard/submit
+Headers:
+  Authorization: Bearer <jwt-token>
+  Idempotency-Key: unique-request-id
+  X-Timestamp: 1642694400
+
+{
+  "score": 1500,
+  "gameMode": "Classic",
+  "playerLevel": 25,
+  "trophyCount": 150,
+  "bonus": ["weekend_bonus"]  // Array of bonus function names
+}
+```
+
+### Creating Custom Bonus Scripts
+
+1. **Add your TypeScript function** to `Scripts/src/calculator.ts`
+2. **Build the scripts**: `npm run build:ts`
+3. **Deploy the updated scripts** with your application
+
+The system will automatically detect and execute your bonus functions, with metrics tracking bonus usage and amounts.
 
 ## 💾 Data Consistency Strategy
 
@@ -579,9 +731,23 @@ JWT_ISSUER=LeaderboardAPI-Dev
 JWT_AUDIENCE=LeaderboardUsers-Dev
 JWT_ACCESS_TOKEN_MINUTES=60
 
+# Database
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=leaderboard
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
 # Connection Strings
 ConnectionStrings__PostgreSQL=Host=localhost;Database=leaderboard;Username=postgres;Password=postgres;Port=5432
 ConnectionStrings__Redis=localhost:6379
+
+# ASP.NET Core
+ASPNETCORE_ENVIRONMENT=Development
 ```
 
 ### Docker Compose Configuration
@@ -598,34 +764,164 @@ The `docker-compose.yml` includes:
 ### Common Issues
 
 **"Connection refused" errors**
-- Check if containers are running: `docker-compose ps`
+- Check if containers are running: `docker-compose --profile dev ps` or `docker-compose --profile prod ps`
 - Verify port mappings in docker-compose.yml
 - Ensure no port conflicts with other services
+- For local development, verify the API is running on the correct port
+
+**Database Connection Issues**
+- Verify PostgreSQL container is healthy: `docker-compose --profile dev exec postgres pg_isready -U postgres -d leaderboard`
+- Check connection string format in .env file
+- Ensure database migrations have run successfully
+- Check logs: `docker-compose --profile dev logs postgres`
+
+**Redis Connection Issues**
+- Verify Redis container is running: `docker-compose --profile dev exec redis redis-cli ping`
+- Check Redis connection string in .env file
+- Verify Redis port is accessible
 
 **Score submission failures**
 - Verify JWT token is valid and not expired
-- Check idempotency key is provided
-- Ensure score increase isn't flagged as suspicious
+- Check idempotency key is provided and unique
+- Ensure score increase isn't flagged as suspicious by the validation system
+- Check timestamp is within acceptable range (not too old or future)
+- Verify user has permission to submit scores
+
+**Authentication Issues**
+- Verify JWT secret matches between API and client
+- Check token expiration time
+- Ensure correct issuer and audience in token
+- Verify user exists in database
 
 **Cache inconsistency**
-- Check Redis connection in logs
-- Verify cache TTL settings
+- Check Redis connection in API logs
+- Verify cache TTL settings in appsettings.json
 - Monitor cache hit/miss rates in Grafana
+- Clear cache manually if needed: `docker-compose --profile dev exec redis redis-cli FLUSHALL`
+
+**TypeScript Script Issues**
+- Ensure scripts are built: `npm run build:ts`
+- Check for syntax errors in `Scripts/src/calculator.ts`
+- Verify function names match exactly in bonus requests
+- Check API logs for script execution errors
+
+**Migration Issues**
+- Ensure database is accessible before running migrations
+- Check migration logs for errors
+- Verify database user has proper permissions
+- Reset database if needed: `docker-compose --profile dev exec postgres psql -U postgres -d leaderboard -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`
 
 ### Debug Commands
 
 ```bash
 # Check container health
-docker-compose ps
+docker-compose --profile dev ps
+docker-compose --profile prod ps
 
 # View API logs
-docker-compose logs -f api
+docker-compose --profile dev logs -f api
+docker-compose --profile prod logs -f api
 
-# Check database connection
-docker-compose exec postgres psql -U postgres -d leaderboard -c "\dt"
+# Check database connection and tables
+docker-compose --profile dev exec postgres psql -U postgres -d leaderboard -c "\dt"
+docker-compose --profile dev exec postgres psql -U postgres -d leaderboard -c "SELECT * FROM \"LeaderboardEntries\" LIMIT 5;"
 
-# Verify Redis connection
-docker-compose exec redis redis-cli ping
+# Verify Redis connection and keys
+docker-compose --profile dev exec redis redis-cli ping
+docker-compose --profile dev exec redis redis-cli KEYS "*"
+
+# Check API health and metrics
+curl http://localhost:5088/Health  # Development
+curl http://localhost:8080/Health  # Production
+curl http://localhost:5088/metrics | head -20  # Check metrics endpoint
+
+# Test authentication
+curl -X POST http://localhost:5088/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test","password":"test"}'
+
+# Check leaderboard endpoints
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:5088/leaderboard/top/Classic?n=10
+
+# Monitor system resources
+docker-compose --profile dev exec postgres psql -U postgres -d leaderboard -c "SELECT * FROM pg_stat_activity;"
+docker stats
+```
+
+### Performance Issues
+
+**High Latency**
+- Check database query performance with `EXPLAIN ANALYZE`
+- Monitor Redis cache hit rates in Grafana
+- Verify network connectivity between services
+- Check for memory pressure on containers
+
+**Memory Issues**
+- Monitor container memory usage: `docker stats`
+- Check Redis memory usage: `docker-compose exec redis redis-cli INFO memory`
+- Verify PostgreSQL memory settings
+- Look for memory leaks in application logs
+
+**Rate Limiting Issues**
+- Check rate limit configurations in appsettings.json
+- Monitor rate limit metrics in Grafana
+- Verify client is not exceeding limits
+- Check for legitimate high-traffic scenarios
+
+### Security-Related Issues
+
+**Replay Attack Detections**
+- Check timestamp validation settings
+- Verify client clock synchronization
+- Review timestamp age distribution in Grafana
+- Check for network latency issues
+
+**Idempotency Conflicts**
+- Verify idempotency key generation is unique per request
+- Check key TTL settings
+- Monitor conflict rates in Grafana
+- Review client-side key generation logic
+
+### Getting Help
+
+If you continue to have issues:
+
+1. **Check the logs**: Start with `docker-compose logs -f` for all services
+2. **Verify configuration**: Ensure all environment variables are set correctly
+3. **Test connectivity**: Use the debug commands above to test each service
+4. **Check Grafana**: Review dashboards for performance and error metrics
+5. **Reset if needed**: Stop containers, remove volumes, and restart fresh
+
+### Recovery Procedures
+
+**Full System Reset (Development)**
+```bash
+# Stop all services
+docker-compose --profile dev down
+
+# Remove volumes (WARNING: This deletes all data)
+docker volume rm $(docker volume ls -q | grep leaderboard)
+
+# Restart fresh
+./dev.sh
+dotnet run --urls "http://localhost:5088"
+```
+
+**Database Reset Only**
+```bash
+# Connect to database
+docker-compose --profile dev exec postgres psql -U postgres -d leaderboard
+
+# Drop and recreate schema
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+# Exit and restart API to run migrations
+exit
+dotnet run --urls "http://localhost:5088"
 ```
 
 ## 🎮 Game Integration Examples
@@ -659,6 +955,23 @@ public class LeaderboardClient
         );
         
         return await response.Content.ReadAsStringAsync();
+    }
+
+    public async Task SubmitScoreWithBonus(int baseScore, string gameMode, string bonusType)
+    {
+        var request = new {
+            score = baseScore,
+            gameMode = gameMode,
+            playerLevel = PlayerData.Level,
+            trophyCount = PlayerData.Trophies,
+            bonus = new[] { bonusType }  // Apply bonus function
+        };
+
+        var response = await _http.PostAsJsonAsync("/leaderboard/submit", request);
+        var result = await response.Content.ReadFromJsonAsync<dynamic>();
+
+        // Result will include bonus amount applied
+        Console.WriteLine($"Score submitted: {result.data.score}, Bonus: {result.bonus}");
     }
 }
 ```

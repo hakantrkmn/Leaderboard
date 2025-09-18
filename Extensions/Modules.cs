@@ -30,6 +30,7 @@ public static class Modules
     {
         services.AddScoped<ILeaderboardRepository, EfLeaderboardRepository>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IScoreValidator, ScoreValidator>();
         services.AddSingleton<IScriptEngineService, ScriptEngineService>();
         
         return services;

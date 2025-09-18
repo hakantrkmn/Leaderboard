@@ -2,28 +2,30 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using StackExchange.Redis;
 using Leaderboard.Metrics;
-using System.Security.Claims;
+using LeaderBoard.Settings;
+using Microsoft.Extensions.Options;
 
 namespace Leaderboard.Filters;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class IdempotencyAttribute : Attribute, IAsyncActionFilter
 {
-	private readonly string _headerName;
-	private readonly TimeSpan _ttl;
-
-	public IdempotencyAttribute(int ttlSeconds = 300, string headerName = "Idempotency-Key")
-	{
-		_headerName = headerName;
-		_ttl = TimeSpan.FromSeconds(ttlSeconds);
-	}
-
 	public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
 	{
+        var settings = context.HttpContext.RequestServices.GetService<IOptions<FilterSettings>>()?.Value;
+        if (settings is null)
+        {
+            await next();
+            return;
+        }
+
+        var headerName = settings.IdempotencyHeaderName;
+        var ttl = TimeSpan.FromSeconds(settings.DefaultTtlSeconds);
+
 		var http = context.HttpContext;
-		if (!http.Request.Headers.TryGetValue(_headerName, out var keyValues) || string.IsNullOrWhiteSpace(keyValues))
+		if (!http.Request.Headers.TryGetValue(headerName, out var keyValues) || string.IsNullOrWhiteSpace(keyValues))
 		{
-			context.Result = new BadRequestObjectResult(new { error = $"Missing {_headerName} header" });
+			context.Result = new BadRequestObjectResult(new { error = $"Missing {headerName} header" });
 			return;
 		}
 		var key = keyValues.ToString().Trim();
@@ -57,21 +59,21 @@ public sealed class IdempotencyAttribute : Attribute, IAsyncActionFilter
 		if (executedContext.Result is ObjectResult objectResult)
 		{
 			var statusCode = objectResult.StatusCode ?? 200;
-			if (statusCode >= 200 && statusCode < 300)
+			if (statusCode >= settings.SuccessStatusCodeMin && statusCode < settings.SuccessStatusCodeMax)
 			{
-				await db.StringSetAsync(redisKey, "success", _ttl);
+				await db.StringSetAsync(redisKey, "success", ttl);
 			}
 		}
 		else if (executedContext.Result is StatusCodeResult statusResult)
 		{
-			if (statusResult.StatusCode >= 200 && statusResult.StatusCode < 300)
+			if (statusResult.StatusCode >= settings.SuccessStatusCodeMin && statusResult.StatusCode < settings.SuccessStatusCodeMax)
 			{
-				await db.StringSetAsync(redisKey, "success", _ttl);
+				await db.StringSetAsync(redisKey, "success", ttl);
 			}
 		}
 		else if (executedContext.Exception == null)
 		{
-			await db.StringSetAsync(redisKey, "success", _ttl);
+			await db.StringSetAsync(redisKey, "success", ttl);
 		}
 	}
 
